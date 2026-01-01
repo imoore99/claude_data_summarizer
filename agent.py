@@ -13,96 +13,81 @@ load_dotenv()
 client = Anthropic()
 
 
-def summarize_with_claude(df_summary: Dict[str, Any]) -> str:
+description = (
+    "You are an experienced business intelligence analyst."
+    "Generate a structured summary of dataset analysis with visualization recommendation."
+    "Provide a natural language summary of key findings and insights, plus two recommended charts the user can create."
+    "Provide a recommendation on the next step in the analysis for the user."
+    "Focus on actionable insights and clear visualizations."
+    "Return the matplotlib code to generate the charts."
+    "Return the code as a string in a code block."
+)
+
+matplotlib_description = (
+    "Complete executable matplotlib code that creates both charts in a figure with two subplots. "
+    "The code should create a figure object named 'fig' and return it at the end. "
+    "Assumes df is already loaded. Example: fig, axes = plt.subplots(1, 2, figsize=(12, 5))"
+)
+
+summary_tool = {
+    "name": "generate_summary",
+    "description": description,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "text": {
+                "type": "string",
+                "description": "Natural language summary of key findings and insights"
+            },
+            "next_steps": {
+                "type": "string",
+                "description": "Recommendation on the next step in the analysis"
+            },
+            "chart_1": {
+                "type": "object",
+                "description": "First recommended chart",
+                "properties": {
+                    "type": {"type": "string", "description": "Chart type (histogram, scatter, box, bar)"},
+                    "x": {"type": "string", "description": "X-axis column name"},
+                    "y": {"type": "string", "description": "Y-axis column name (null for histograms)"}
+                },
+                "required": ["type", "x"]
+            },
+            "chart_2": {
+                "type": "object",
+                "description": "Second recommended chart",
+                "properties": {
+                    "type": {"type": "string"},
+                    "x": {"type": "string"},
+                    "y": {"type": "string"}
+                    }
+                },
+            "matplotlib_code": {
+                "type": "string",
+                "description": matplotlib_description
+        }
+        },
+        "required": ["text", "next_steps", "chart_1", "chart_2", "matplotlib_code"]
+    }
+}
+
+def summarize_with_claude(summary_text) -> str:
 
     # Call Claude with the dataset summary and return a short analysis.
     # Include chart suggestions if available.
-    resp = client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=400,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    "You are a data analyst. Here is a JSON summary of a dataset:\n\n"
-                    f"{df_summary}\n\n"
-                    "Return ONLY valid JSON with this structure:\n"
-                    "{\n"
-                    '  \"text\": \"...1–2 short paragraphs plus 3–5 bullet insights. Do NOT label paragraphs as \'Paragraph 1\' or \'Paragraph 2\'; just write them normally\", \n'
-                    '  \"chart_1\": {\n'
-                    '    \"type\": \"histogram\" | \"bar\" | \"scatter\", \n'
-                    '    \"x\": \"column_name_for_x\", \n'
-                    '    \"y\": \"column_name_for_y_or_null\"\n'
-                    "  },\n"
-                    '  \"chart_2\": {\n'
-                    '    \"type\": \"histogram\" | \"bar\" | \"scatter\", \n'
-                    '    \"x\": \"column_name_for_x\", \n'
-                    '    \"y\": \"column_name_for_y_or_null\"\n'
-                    "  }\n"
-                    "}\n"
-                    "Use only columns that exist in the summary. But do not use the index or any unlisted columns in chart_1 or chart_2."
-                    "- Do NOT choose exactly the same (type, x, y) for chart_1 and chart_2.\n"
-                    "- If you cannot recommend a second chart, set chart_2 to null.\n"
-                    "- round all values to 2 decimal places where applicable.\n"
-                    "Do NOT add any extra keys or text outside the JSON."
-                ),
-            }
-        ],
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1500,
+        tools=[summary_tool],
+        messages=[{
+            "role": "user",
+            "content": f"Analyze this dataset summary and provide insights:\n\n{summary_text}"
+        }],
     )
-
-    # Extract text blocks from the response
-    raw = "".join(block.text for block in resp.content if block.type == "text")
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        # Fallback if Claude's output isn't valid JSON
-        parsed = {
-            "text": raw,
-            "chart": None,
-        }
-
-    # Ensure keys exist
-    if "text" not in parsed:
-        parsed["text"] = ""
-    if "chart" not in parsed:
-        parsed["chart"] = None
-
-    return parsed
-
-def build_dataset_summary(df: pd.DataFrame) -> Dict[str, Any]:
-    n_rows, n_cols = df.shape
-
-    numeric_cols = df.select_dtypes(include="number").columns.tolist()
-    numeric_summary = {}
-    if numeric_cols:
-        desc = df[numeric_cols].describe().T
-        for col in desc.index:
-            stats = desc.loc[col]
-            numeric_summary[col] = {
-                "mean": float(stats["mean"]),
-                "std": float(stats["std"]),
-                "min": float(stats["min"]),
-                "max": float(stats["max"]),
-            }
-
-    cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
-    categorical_summary = {}
-    for col in cat_cols[:5]:
-        value_counts = df[col].value_counts().head(3)
-        categorical_summary[col] = {str(k): int(v) for k, v in value_counts.items()}
-    # Very simple chart suggestions
-    chart_config = {
-        "hist_column": numeric_cols[0] if len(numeric_cols) >= 1 else None,
-        "scatter_x": numeric_cols[0] if len(numeric_cols) >= 2 else None,
-        "scatter_y": numeric_cols[1] if len(numeric_cols) >= 2 else None,
-    }
-
-    summary = {
-        "shape": {"rows": n_rows, "columns": n_cols},
-        "numeric_columns": numeric_cols,
-        "numeric_summary": numeric_summary,
-        "categorical_columns": cat_cols,
-        "categorical_summary": categorical_summary,
-        "chart_config": chart_config,
-    }
-    return summary
+    
+    # Extract the tool use input (already a dict)
+    for block in response.content:
+        if block.type == 'tool_use' and block.name == 'generate_summary':
+            return block.input  # Return dict directly, not json.dumps()
+    
+    return None

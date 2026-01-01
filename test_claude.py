@@ -9,7 +9,7 @@ client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 resp = client.messages.create(
     model="claude-3-haiku-20240307",
-    max_tokens=200,
+    max_tokens=2000,
     messages=[
         {"role": "user", "content": "In one short paragraph, explain what this API does."}
     ],
