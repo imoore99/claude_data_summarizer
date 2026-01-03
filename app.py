@@ -2,10 +2,15 @@ import streamlit as st
 from streamlit_extras.stylable_container import stylable_container
 import pandas as pd
 import numpy as np
-import altair as alt
-import json
 
-from agent import summarize_with_claude
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+from scipy.spatial import ConvexHull
+# import altair as alt
+#import json
+
+from agent import summarize_with_claude, ask_followup_question, build_context_for_followup
 
 def button_callback(label, href):
     button_html = f"""
@@ -34,6 +39,11 @@ st.set_page_config(
     page_icon="📈",
     layout="wide"
 )
+
+# After page config
+if "followup_history" not in st.session_state:
+    st.session_state.followup_history = []
+
 
 with stylable_container(
     key="sticky_header",
@@ -189,22 +199,135 @@ if claude_text:
 else:
     st.write("No summary available yet.")
 
+#### Dataset Prompt Components -->
+
+
 st.markdown("---")
 st.markdown("## Dataset Prompt")
-st.text_input("Ask a follow-up question about the data:", key="followup_input")
-if st.button("Ask Claude"):
-    followup = st.session_state.get("followup_input", "")
-    if followup:
-        claude_response = st.session_state.get("claude_response", {})
-        chart_1 = claude_response.get("chart_1")
-        chart_2 = claude_response.get("chart_2")
-        summary = st.session_state.get("summary", "")
-        
-        followup_result = ask_followup_question(followup, summary, chart_1, chart_2)
-        st.session_state["claude_text"] = followup_result.get("text")
-        st.session_state["claude_chart_1"] = followup_result.get("chart_1")
-        st.session_state["claude_chart_2"] = followup_result.get("chart_2")
-        st.session_state["followup_history"].append({"role": "user", "text": followup})
-        st.session_state["followup_history"].append({"role": "assistant", "text": followup_result.get("text")})
+
+# Add turn counter
+turn_count = len(st.session_state.followup_history) // 2
+st.caption(f"Conversation turns: {turn_count}/20")
+
+if turn_count >= 20:
+    st.error("⚠️ Conversation limit reached (20 turns). Click below to start fresh.")
+    if st.button("Clear Chat History"):
+        st.session_state.followup_history = []
         st.rerun()
+elif turn_count >= 18:
+    st.warning("⚠️ Conversation limit nearly reached (20 turns).")
+
+if turn_count < 20:
+    st.text_input("Ask a follow-up question about the data:", key="followup_input")
+    if st.button("Ask Claude"):
+        followup = st.session_state.get("followup_input", "")
+        if followup:
+            df_current = st.session_state.get("df")
+            df_context = build_context_for_followup(df_current)
+            
+            # DETECT IF USER WANTS A VISUALIZATION
+            chart_keywords = [
+                "chart", "plot", "visualiz", "graph", "show", "display",
+                "create", "generate", "draw", "scatter", "histogram", 
+                "heatmap", "bar", "line", "box", "distribution",
+                "another plot", "different plot", "view this data",
+                "convex hull"
+            ]
+            needs_chart = any(keyword in followup.lower() for keyword in chart_keywords)
+            
+            # CALL WITH force_tool PARAMETER
+            followup_result = ask_followup_question(
+                followup, 
+                st.session_state.followup_history,
+                df_context,
+                force_tool=needs_chart  # <-- ADD THIS PARAMETER
+            )
+            
+            # Store ONLY role and content in history (for API)
+            st.session_state.followup_history.append({
+                "role": "user",
+                "content": followup
+            })
+            st.session_state.followup_history.append({
+                "role": "assistant",
+                "content": followup_result.get("text")
+            })
+            
+            # Initialize chart history if needed
+            if "chart_history" not in st.session_state:
+                st.session_state.chart_history = []
+            
+            # Append new chart (order matters!)
+            st.session_state.chart_history.append({
+                "question": followup,
+                "code": followup_result.get("matplotlib_code"),
+                "chart_1": followup_result.get("chart_1"),
+                "chart_2": followup_result.get("chart_2")
+            })
+        else:
+            # No chart generated, append None to maintain alignment
+            if "chart_history" not in st.session_state:
+                st.session_state.chart_history = []
+            st.session_state.chart_history.append(None)
+            
+            st.rerun()
+
+# Display conversation history
+if st.session_state.followup_history:
+    st.markdown("### Conversation")
     
+    # Initialize chart history if needed
+    if "chart_history" not in st.session_state:
+        st.session_state.chart_history = []
+    
+    chart_index = 0  # Track which chart we're on
+    
+    for i, msg in enumerate(st.session_state.followup_history):
+        if msg["role"] == "user":
+            st.markdown(f"**You:** {msg['content']}")
+        else:
+            st.markdown(f"**Claude:** {msg['content']}")
+            
+            # Check if there's a chart for this assistant response
+            # Assistant messages are at odd indices (1, 3, 5, ...)
+            assistant_response_num = (i - 1) // 2  # Which assistant response is this?
+            
+            if assistant_response_num < len(st.session_state.chart_history):
+                chart = st.session_state.chart_history[assistant_response_num]
+                # In your chart display section:
+                if chart and chart.get("code"):
+                    try:
+                        from scipy.spatial import ConvexHull
+                    except ImportError:
+                        ConvexHull = None
+                    
+                    try:
+                        from io import StringIO
+                    except ImportError:
+                        StringIO = None
+                    
+                    # Create namespace INSIDE the try block
+                    namespace = {
+                        'df': st.session_state.get("df"),
+                        'plt': plt,
+                        'np': np,
+                        'pd': pd,
+                    }
+                    
+                    # Add optional imports
+                    if ConvexHull:
+                        namespace['ConvexHull'] = ConvexHull
+                    if StringIO:
+                        namespace['StringIO'] = StringIO
+                    
+                    try:
+                        # Execute matplotlib code
+                        exec(chart["code"], namespace)
+                        # Get the fig from namespace
+                        if 'fig' in namespace:
+                            st.pyplot(namespace['fig'])
+                        else:
+                            st.error("No 'fig' object created by the code")
+                    except Exception as e:
+                        st.error(f"Error rendering chart: {e}")
+                        st.code(chart["code"], language="python")  # Show the problematic code

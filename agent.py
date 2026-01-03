@@ -91,3 +91,103 @@ def summarize_with_claude(summary_text) -> str:
             return block.input  # Return dict directly, not json.dumps()
     
     return None
+
+def ask_followup_question(question: str, conversation_history: list, df_context: str, force_tool: bool = False) -> Dict[str, Any]:
+    """Handle follow-up questions with conversation context."""
+    
+    # Build messages - ONLY include role and content
+    messages = []
+    
+    # Add system context
+    messages.append({
+        "role": "user",
+        "content": f"""{df_context}
+
+            You have access to a tool called 'generate_summary' that can create visualizations.
+            When the user asks for charts or plots, you MUST use the generate_summary tool to return executable matplotlib code.
+
+            Please help me analyze this data."""
+    })
+    messages.append({
+        "role": "assistant", 
+        "content": "I understand the dataset and will use the generate_summary tool when you need visualizations. What would you like to know?"
+    })
+    
+    # Add conversation history
+    for msg in conversation_history:
+        messages.append({
+            "role": msg["role"],
+            "content": msg["content"]
+        })
+    
+    # Add current question
+    messages.append({
+        "role": "user",
+        "content": question
+    })
+    
+    # DECIDE TOOL CHOICE BASED ON force_tool PARAMETER
+    if force_tool:
+        tool_choice = {"type": "tool", "name": "generate_summary"}  # FORCE the tool
+    else:
+        tool_choice = {"type": "auto"}  # Let Claude decide
+    
+    # Call Claude
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=3000,
+        tools=[summary_tool],
+        tool_choice=tool_choice,  # <-- USE THE CONDITIONAL CHOICE
+        messages=messages
+    )
+    
+    # Parse response
+    result = {
+        "text": "",
+        "chart_1": None,
+        "chart_2": None,
+        "matplotlib_code": None
+    }
+    
+    for block in response.content:
+        if block.type == 'text':
+            result["text"] += block.text
+        elif block.type == 'tool_use' and block.name == 'generate_summary':
+            result["text"] = block.input.get("text", "")
+            result["chart_1"] = block.input.get("chart_1")
+            result["chart_2"] = block.input.get("chart_2")
+            result["matplotlib_code"] = block.input.get("matplotlib_code")
+    
+    return result
+
+def build_context_for_followup(df):
+    """Build intelligent context that works for any dataset."""
+    context_parts = []
+    
+    # Basic info
+    context_parts.append(f"Dataset: {len(df)} rows, {len(df.columns)} columns")
+    context_parts.append(f"Columns: {', '.join(df.columns)}")
+    
+    # Data types
+    context_parts.append(f"\nData types:\n{df.dtypes.to_string()}")
+    
+    # Overall summary for numeric columns (compact)
+    context_parts.append("\nNumeric column summary:")
+    context_parts.append(df.describe().to_string())
+    
+    # Detect potential grouping columns (low cardinality)
+    categorical_cols = []
+    for col in df.columns:
+        if df[col].dtype == 'object' or df[col].nunique() < 20:
+            categorical_cols.append(col)
+    
+    if categorical_cols:
+        context_parts.append(f"\nPotential grouping columns: {', '.join(categorical_cols)}")
+        # Show value counts for categorical columns
+        for col in categorical_cols[:3]:  # Limit to first 3 to save tokens
+            value_counts = df[col].value_counts()
+            context_parts.append(f"\n{col} distribution:\n{value_counts.to_string()}")
+    
+    context_parts.append("\nIMPORTANT: Variable 'df' contains the full dataset and is available for all plotting operations.")
+    
+    return "\n".join(context_parts)
