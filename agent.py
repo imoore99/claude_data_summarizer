@@ -90,6 +90,8 @@ def summarize_with_claude(summary_text) -> str:
         if block.type == 'tool_use' and block.name == 'generate_summary':
             return block.input  # Return dict directly, not json.dumps()
     
+    
+    
     return None
 
 def ask_followup_question(question: str, conversation_history: list, df_context: str, force_tool: bool = False) -> Dict[str, Any]:
@@ -158,7 +160,11 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
             result["chart_2"] = block.input.get("chart_2")
             result["matplotlib_code"] = block.input.get("matplotlib_code")
     
-    return result
+    input_tokens = response.usage.input_tokens
+    output_tokens = response.usage.output_tokens
+    token_count = input_tokens + output_tokens
+    
+    return result, token_count
 
 def build_context_for_followup(df):
     """Build intelligent context that works for any dataset."""
@@ -188,6 +194,17 @@ def build_context_for_followup(df):
             value_counts = df[col].value_counts()
             context_parts.append(f"\n{col} distribution:\n{value_counts.to_string()}")
     
-    context_parts.append("\nIMPORTANT: Variable 'df' contains the full dataset and is available for all plotting operations.")
+    # CRITICAL: Tell Claude the dataframe is available
+    context_parts.append("\n" + "="*50)
+    context_parts.append("IMPORTANT FOR CODE GENERATION:")
+    context_parts.append("="*50)
+    context_parts.append("A pandas DataFrame named 'df' is available in the execution environment.")
+    context_parts.append("You can use standard pandas operations for aggregations:")
+    context_parts.append("  - df.groupby('column').agg({'other_col': 'mean'})")
+    context_parts.append("  - df[df['column'] > value]")
+    context_parts.append("  - df.pivot_table(...)")
+    context_parts.append("All necessary imports (pandas, numpy, matplotlib) are available.")
+    context_parts.append("Generate code that uses 'df' directly - it contains the full dataset.")
+    
     
     return "\n".join(context_parts)
