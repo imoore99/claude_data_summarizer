@@ -1,3 +1,25 @@
+"""
+agent.py — dataset analysis assistant using Anthropic Claude.
+
+Responsibilities:
+- Build prompt & tool schema for `generate_summary`.
+- Call the Claude API to produce structured summaries and executable matplotlib code.
+- Provide follow-up question handling and context-construction helpers.
+
+Side effects:
+- Loads environment variables via `load_dotenv()`.
+- Instantiates a global `client` (reads ANTHROPIC_API_KEY).
+- Configures module-level logging.
+
+Public functions:
+- summarize_with_claude(summary_text) -> (result_dict, token_count)
+- ask_followup_question(question, conversation_history, df_context, force_tool=False) -> (result_dict, token_count)
+- build_context_for_followup(df) -> str
+
+Notes:
+- Keep the client injectable for tests; create the real client in a thin entrypoint when possible.
+"""
+
 #import packages
 from typing import Dict, Any
 from anthropic import Anthropic  #claude model source
@@ -7,12 +29,18 @@ from dotenv import load_dotenv
 # Load .env so ANTHROPIC_API_KEY is available
 load_dotenv()
 
-# Create Anthropic client (reads ANTHROPIC_API_KEY from environment)
+# Create Anthropic client (reads ANTHROPIC_API_KEY from environment).
+# NOTE: this creates a process-global client. For testability, prefer
+# passing a client instance into functions (dependency injection).
 client = Anthropic()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# `summary_tool` schema: used by Claude tool invocation to return structured output.
+# Ensure descriptions here match the expected returned keys (chart_1/chart_2/matplotlib_code).
+# Keep `matplotlib_description` precise about required variable names (e.g., `fig`).
 
 ## Prompt Engineering - Describe user
 description = (
@@ -35,7 +63,7 @@ matplotlib_description = (
     "Assume df is already loaded. Example: fig, axes = plt.subplots(1, 2, figsize=(12, 5))"
 )
 
-## sumamry tool for generalization
+## summary tool for generalization
 summary_tool = {
     "name": "generate_summary",
     "description": description,
@@ -80,6 +108,28 @@ summary_tool = {
 
 # Function for Initial summarizing dataset
 def summarize_with_claude(summary_text) -> str:
+    """Generate a structured dataset summary via Claude.
+
+    Args:
+        summary_text: Short textual description or example rows to analyze.
+
+    Returns:
+        A tuple `(result, token_count)` where `result` is a dict matching the
+        `summary_tool` schema:
+          {
+            "text": str,
+            "next_steps": str,
+            "chart_1": dict | None,
+            "chart_2": dict | None,
+            "matplotlib_code": str | None,
+            "error": bool
+          }
+        and `token_count` is the total tokens used (input + output).
+
+    Raises:
+        Returns an error-shaped dict and token_count 0 for expected API errors.
+        (Consider raising exceptions for truly unexpected failures.)
+    """
     try:
 
         logger.info(f"API call started")  #log API start
@@ -172,7 +222,18 @@ def summarize_with_claude(summary_text) -> str:
     
 ## Function for followup questions - prompting additional analysis of dataset
 def ask_followup_question(question: str, conversation_history: list, df_context: str, force_tool: bool = False) -> Dict[str, Any]:
-    """Handle follow-up questions with conversation context."""
+    """Handle follow-ups, optionally forcing the `generate_summary` tool.
+
+    Args:
+        question: The user's follow-up question.
+        conversation_history: Prior messages (list of dicts with 'role' and 'content').
+        df_context: Pre-built dataframe context (use `build_context_for_followup`).
+        force_tool: If True, force the tool to run (useful for chart requests).
+
+    Returns:
+        (result, token_count) where `result` contains `text`, optional charts,
+        `matplotlib_code`, and `error` flag (same schema as summarize).
+    """
     try:
         # Build messages - ONLY include role and content
         messages = []

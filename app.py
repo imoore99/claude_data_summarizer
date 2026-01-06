@@ -1,3 +1,27 @@
+"""
+app.py — CSV summarization orchestration using an LLM client.
+
+Responsibilities:
+- Load and clean CSV input.
+- Orchestrate calls to a summarization client to produce text and matplotlib code.
+- Persist summaries to disk.
+
+Side effects:
+- Reads environment variables (e.g., ANTHROPIC_API_KEY).
+- Instantiates a module-level client by default; for tests, prefer injecting a client.
+
+Public API:
+- load_csv(path: str) -> list[dict]
+- clean_rows(rows) -> list[dict]
+- summarize_records(rows, client, ...) -> str
+- save_summary(path: str, summary: str) -> None
+- main(argv: Optional[list[str]]) -> int
+
+Notes:
+- Document the expected shape of returned objects (e.g., matplotlib_code string that defines a `fig`).
+- Keep real client construction in `main()` and inject a fake client for unit tests.
+"""
+
 #import packages
 import streamlit as st
 from streamlit_extras.stylable_container import stylable_container
