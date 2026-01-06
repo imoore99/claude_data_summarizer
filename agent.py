@@ -1,13 +1,8 @@
-#import os
+#import packages
 from typing import Dict, Any
-# import json
-
-# import pandas as pd
-from anthropic import Anthropic
-import logging
-
-
-from dotenv import load_dotenv
+from anthropic import Anthropic  #claude model source
+import logging                   #used for logging in terminal
+from dotenv import load_dotenv   
 
 # Load .env so ANTHROPIC_API_KEY is available
 load_dotenv()
@@ -19,7 +14,7 @@ client = Anthropic()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+## Prompt Engineering - Describe user
 description = (
     "You are an experienced business intelligence analyst."
     "Generate a structured summary of dataset analysis with visualization recommendation."
@@ -30,12 +25,17 @@ description = (
     "Return the code as a string in a code block."
 )
 
+## describe matplotlib call back
 matplotlib_description = (
-    "Complete executable matplotlib code that creates both charts in a figure with two subplots. "
-    "The code should create a figure object named 'fig' and return it at the end. "
-    "Assumes df is already loaded. Example: fig, axes = plt.subplots(1, 2, figsize=(12, 5))"
+    "Complete executable matplotlib code that creates both charts in a figure with two subplots."
+    "Always return a figure with two subplots in initial summary."
+    "Return a figure with two subplots in subsequent requests if necessary."
+    "If only one plot is requested, return a figure with one subplot."
+    "The code should ALWAYS create a figure object named 'fig' and return it at the end. "
+    "Assume df is already loaded. Example: fig, axes = plt.subplots(1, 2, figsize=(12, 5))"
 )
 
+## sumamry tool for generalization
 summary_tool = {
     "name": "generate_summary",
     "description": description,
@@ -78,13 +78,15 @@ summary_tool = {
     }
 }
 
+# Function for Initial summarizing dataset
 def summarize_with_claude(summary_text) -> str:
-    
     try:
-        
-        logger.info(f"API call started")
+
+        logger.info(f"API call started")  #log API start
+
         # Call Claude with the dataset summary and return a short analysis.
         # Include chart suggestions if available.
+        # THIS IS THE MAIN RESPONSE
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1500,
@@ -94,13 +96,15 @@ def summarize_with_claude(summary_text) -> str:
                 "content": f"Analyze this dataset summary and provide insights:\n\n{summary_text}"
             }],
         )
-        logger.info(f"API response successful")
+        logger.info(f"API response successful") #log successful connection
         
         # Extract the tool use input (already a dict)
         for block in response.content:
             if block.type == 'tool_use' and block.name == 'generate_summary':
-                return block.input  # Return dict directly, not json.dumps()
+                return block.input  # Return dict directly for use
 
+
+        ##START OF ERROR HANDLING 
         # If no tool use found, return error
         logger.warning("No tool use found in response")
         return {
@@ -111,7 +115,7 @@ def summarize_with_claude(summary_text) -> str:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If no connection made, return error
     except anthropic.APIConnectionError as e:
         logger.error(f"Connection error: {str(e)}")
         return {
@@ -122,7 +126,7 @@ def summarize_with_claude(summary_text) -> str:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If hitting rate limit, return error message
     except anthropic.RateLimitError as e:
         logger.warning(f"Rate limit hit: {str(e)}")
         return {
@@ -133,7 +137,7 @@ def summarize_with_claude(summary_text) -> str:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If API status issue, return error
     except anthropic.APIStatusError as e:
         logger.error(f"API status error {e.status_code}: {str(e)}")
         if e.status_code == 400:
@@ -153,7 +157,7 @@ def summarize_with_claude(summary_text) -> str:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If edge-case exception, return error
     except Exception as e:
         logger.error(f"Unexpected error in summarize_with_claude: {str(e)}")
         return {
@@ -166,7 +170,7 @@ def summarize_with_claude(summary_text) -> str:
         }, 0
 
     
-
+## Function for followup questions - prompting additional analysis of dataset
 def ask_followup_question(question: str, conversation_history: list, df_context: str, force_tool: bool = False) -> Dict[str, Any]:
     """Handle follow-up questions with conversation context."""
     try:
@@ -183,6 +187,7 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
 
                 Please help me analyze this data."""
         })
+        # Return messages
         messages.append({
             "role": "assistant", 
             "content": "I understand the dataset and will use the generate_summary tool when you need visualizations. What would you like to know?"
@@ -203,12 +208,14 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
         
         # DECIDE TOOL CHOICE BASED ON force_tool PARAMETER
         if force_tool:
-            tool_choice = {"type": "tool", "name": "generate_summary"}  # FORCE the tool
+            tool_choice = {"type": "tool", "name": "generate_summary"}  # FORCE the tool to generate a summary
         else:
             tool_choice = {"type": "auto"}  # Let Claude decide
         
+        ## Log question in follow-up prompt - testing API connection
         logger.info(f"API call started - Question: {question[:50]}")
-        # Call Claude
+
+        # Call Claude with follow-up questions
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=3000,
@@ -227,6 +234,7 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
             "error": False
         }
         
+        # Return response
         for block in response.content:
             if block.type == 'text':
                 result["text"] += block.text
