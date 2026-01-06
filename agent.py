@@ -99,10 +99,7 @@ def summarize_with_claude(summary_text) -> str:
         # Extract the tool use input (already a dict)
         for block in response.content:
             if block.type == 'tool_use' and block.name == 'generate_summary':
-                result = block.input
-                result["error"] = False
-                token_count = response.usage.input_tokens + response.usage.output_tokens
-                return result, token_count
+                return block.input  # Return dict directly, not json.dumps()
 
         # If no tool use found, return error
         logger.warning("No tool use found in response")

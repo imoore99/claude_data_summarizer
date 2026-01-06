@@ -145,25 +145,22 @@ with top_row[1]:
     if st.button("Analyze with Claude", disabled=analyze_disabled):
         with st.spinner("Generating summary..."):
             df_current = st.session_state.get("df")
-            claude_summary, tokens_used = summarize_with_claude(df_current)
+            claude_summary = summarize_with_claude(df_current)
 
-    # Check for errors
-    if claude_summary.get("error"):
-        st.error(claude_summary.get("text"))
-        # Don't save to session state if error
-    else:
+        # Check for errors
+        if claude_summary.get("error"):
+            st.error(claude_summary.get("text"))
+            # Don't save to session state if error
+        else:
 
-        st.session_state["claude_text"] = claude_summary.get("text")
-        st.session_state["next_steps"] = claude_summary.get("next_steps")
-        st.session_state['chart_1'] = claude_summary.get("chart_1")
-        st.session_state['chart_2'] = claude_summary.get("chart_2")
-        st.session_state["matplotlib_code"] = claude_summary.get("matplotlib_code")
+            st.session_state["claude_text"] = claude_summary.get("text")
+            st.session_state["next_steps"] = claude_summary.get("next_steps")
+            st.session_state['chart_1'] = claude_summary.get("chart_1")
+            st.session_state['chart_2'] = claude_summary.get("chart_2")
+            st.session_state["matplotlib_code"] = claude_summary.get("matplotlib_code")
 
-        # Track tokens
-        if "total_tokens" not in st.session_state:
-            st.session_state.total_tokens = 0
-        st.session_state.total_tokens += tokens_used
-        
+      
+
 
 with top_row[2]:
     st.markdown("#### Instructions")
