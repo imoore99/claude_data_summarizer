@@ -1,9 +1,12 @@
-import os
+#import os
 from typing import Dict, Any
-import json
+# import json
 
-import pandas as pd
+# import pandas as pd
 from anthropic import Anthropic
+import logging
+
+
 from dotenv import load_dotenv
 
 # Load .env so ANTHROPIC_API_KEY is available
@@ -11,6 +14,10 @@ load_dotenv()
 
 # Create Anthropic client (reads ANTHROPIC_API_KEY from environment)
 client = Anthropic()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 description = (
@@ -72,99 +79,220 @@ summary_tool = {
 }
 
 def summarize_with_claude(summary_text) -> str:
+    
+    try:
+        
+        logger.info(f"API call started")
+        # Call Claude with the dataset summary and return a short analysis.
+        # Include chart suggestions if available.
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            tools=[summary_tool],
+            messages=[{
+                "role": "user",
+                "content": f"Analyze this dataset summary and provide insights:\n\n{summary_text}"
+            }],
+        )
+        logger.info(f"API response successful")
+        
+        # Extract the tool use input (already a dict)
+        for block in response.content:
+            if block.type == 'tool_use' and block.name == 'generate_summary':
+                result = block.input
+                result["error"] = False
+                token_count = response.usage.input_tokens + response.usage.output_tokens
+                return result, token_count
 
-    # Call Claude with the dataset summary and return a short analysis.
-    # Include chart suggestions if available.
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1500,
-        tools=[summary_tool],
-        messages=[{
-            "role": "user",
-            "content": f"Analyze this dataset summary and provide insights:\n\n{summary_text}"
-        }],
-    )
+        # If no tool use found, return error
+        logger.warning("No tool use found in response")
+        return {
+            "text": "⚠️ Unable to generate summary. Please try again.",
+            "next_steps": "",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
-    # Extract the tool use input (already a dict)
-    for block in response.content:
-        if block.type == 'tool_use' and block.name == 'generate_summary':
-            return block.input  # Return dict directly, not json.dumps()
+    except anthropic.APIConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        return {
+            "text": "⚠️ Connection error: Unable to reach the AI service. Please check your internet connection and try again.",
+            "next_steps": "",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
+    except anthropic.RateLimitError as e:
+        logger.warning(f"Rate limit hit: {str(e)}")
+        return {
+            "text": "⚠️ Rate limit reached: Too many requests. Please wait a moment and try again.",
+            "next_steps": "",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
+    except anthropic.APIStatusError as e:
+        logger.error(f"API status error {e.status_code}: {str(e)}")
+        if e.status_code == 400:
+            error_msg = "⚠️ Invalid request: There was an issue analyzing this dataset. Please try a different dataset."
+        elif e.status_code == 401:
+            error_msg = "⚠️ Authentication error: API key is invalid. Please check your configuration."
+        elif e.status_code >= 500:
+            error_msg = "⚠️ Service temporarily unavailable: The AI service is experiencing issues. Please try again in a few moments."
+        else:
+            error_msg = f"⚠️ Error {e.status_code}: An unexpected error occurred. Please try again."
+        
+        return {
+            "text": error_msg,
+            "next_steps": "",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
-    return None
+    except Exception as e:
+        logger.error(f"Unexpected error in summarize_with_claude: {str(e)}")
+        return {
+            "text": f"⚠️ Unexpected error: {str(e)}. Please try again or contact support if the issue persists.",
+            "next_steps": "",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
+
+    
 
 def ask_followup_question(question: str, conversation_history: list, df_context: str, force_tool: bool = False) -> Dict[str, Any]:
     """Handle follow-up questions with conversation context."""
-    
-    # Build messages - ONLY include role and content
-    messages = []
-    
-    # Add system context
-    messages.append({
-        "role": "user",
-        "content": f"""{df_context}
-
-            You have access to a tool called 'generate_summary' that can create visualizations.
-            When the user asks for charts or plots, you MUST use the generate_summary tool to return executable matplotlib code.
-
-            Please help me analyze this data."""
-    })
-    messages.append({
-        "role": "assistant", 
-        "content": "I understand the dataset and will use the generate_summary tool when you need visualizations. What would you like to know?"
-    })
-    
-    # Add conversation history
-    for msg in conversation_history:
+    try:
+        # Build messages - ONLY include role and content
+        messages = []
+        
+        # Add system context
         messages.append({
-            "role": msg["role"],
-            "content": msg["content"]
+            "role": "user",
+            "content": f"""{df_context}
+
+                You have access to a tool called 'generate_summary' that can create visualizations.
+                When the user asks for charts or plots, you MUST use the generate_summary tool to return executable matplotlib code.
+
+                Please help me analyze this data."""
         })
+        messages.append({
+            "role": "assistant", 
+            "content": "I understand the dataset and will use the generate_summary tool when you need visualizations. What would you like to know?"
+        })
+        
+        # Add conversation history
+        for msg in conversation_history:
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        
+        # Add current question
+        messages.append({
+            "role": "user",
+            "content": question
+        })
+        
+        # DECIDE TOOL CHOICE BASED ON force_tool PARAMETER
+        if force_tool:
+            tool_choice = {"type": "tool", "name": "generate_summary"}  # FORCE the tool
+        else:
+            tool_choice = {"type": "auto"}  # Let Claude decide
+        
+        logger.info(f"API call started - Question: {question[:50]}")
+        # Call Claude
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=3000,
+            tools=[summary_tool],
+            tool_choice=tool_choice,  # <-- USE THE CONDITIONAL CHOICE
+            messages=messages
+        )
+        logger.info("API call successful")
+        
+        # Parse response
+        result = {
+            "text": "",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": False
+        }
+        
+        for block in response.content:
+            if block.type == 'text':
+                result["text"] += block.text
+            elif block.type == 'tool_use' and block.name == 'generate_summary':
+                result["text"] = block.input.get("text", "")
+                result["chart_1"] = block.input.get("chart_1")
+                result["chart_2"] = block.input.get("chart_2")
+                result["matplotlib_code"] = block.input.get("matplotlib_code")
+        
+        input_tokens = response.usage.input_tokens
+        output_tokens = response.usage.output_tokens
+        token_count = input_tokens + output_tokens
+        
+        return result, token_count
     
-    # Add current question
-    messages.append({
-        "role": "user",
-        "content": question
-    })
+    except anthropic.APIConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        return {
+            "text": "⚠️ Connection error: Unable to reach the AI service. Please check your internet connection and try again.",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
-    # DECIDE TOOL CHOICE BASED ON force_tool PARAMETER
-    if force_tool:
-        tool_choice = {"type": "tool", "name": "generate_summary"}  # FORCE the tool
-    else:
-        tool_choice = {"type": "auto"}  # Let Claude decide
+    except anthropic.RateLimitError as e:
+        logger.warning(f"Rate limit hit: {str(e)}")
+        return {
+            "text": "⚠️ Rate limit reached: Too many requests. Please wait a moment and try again.",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
-    # Call Claude
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=3000,
-        tools=[summary_tool],
-        tool_choice=tool_choice,  # <-- USE THE CONDITIONAL CHOICE
-        messages=messages
-    )
+    except anthropic.APIStatusError as e:
+        logger.error(f"API status error {e.status_code}: {str(e)}")
+        if e.status_code == 400:
+            error_msg = "⚠️ Invalid request: There was an issue with the request format. Please try rephrasing your question."
+        elif e.status_code == 401:
+            error_msg = "⚠️ Authentication error: API key is invalid. Please contact support."
+        elif e.status_code >= 500:
+            error_msg = "⚠️ Service temporarily unavailable: The AI service is experiencing issues. Please try again in a few moments."
+        else:
+            error_msg = f"⚠️ Error {e.status_code}: An unexpected error occurred. Please try again."
+        
+        return {
+            "text": error_msg,
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
     
-    # Parse response
-    result = {
-        "text": "",
-        "chart_1": None,
-        "chart_2": None,
-        "matplotlib_code": None
-    }
-    
-    for block in response.content:
-        if block.type == 'text':
-            result["text"] += block.text
-        elif block.type == 'tool_use' and block.name == 'generate_summary':
-            result["text"] = block.input.get("text", "")
-            result["chart_1"] = block.input.get("chart_1")
-            result["chart_2"] = block.input.get("chart_2")
-            result["matplotlib_code"] = block.input.get("matplotlib_code")
-    
-    input_tokens = response.usage.input_tokens
-    output_tokens = response.usage.output_tokens
-    token_count = input_tokens + output_tokens
-    
-    return result, token_count
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return {
+            "text": f"⚠️ Unexpected error: {str(e)}. Please try again or contact support if the issue persists.",
+            "chart_1": None,
+            "chart_2": None,
+            "matplotlib_code": None,
+            "error": True
+        }, 0
 
 def build_context_for_followup(df):
     """Build intelligent context that works for any dataset."""
