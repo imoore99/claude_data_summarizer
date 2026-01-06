@@ -1,16 +1,14 @@
+#import packages
 import streamlit as st
 from streamlit_extras.stylable_container import stylable_container
 import pandas as pd
 import numpy as np
-
-import seaborn as sns
 import matplotlib.pyplot as plt
-import scipy.stats as stats
 from scipy.spatial import ConvexHull
-
-
+from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_diabetes  #for test datasets
 from agent import summarize_with_claude, ask_followup_question, build_context_for_followup
 
+## <------- Function Set STARTS Here ------> ##
 def button_callback(label, href):
     button_html = f"""
     <a href="{href}" style="text-decoration: none; flex: 1 1 0; display: flex;">
@@ -31,170 +29,6 @@ def button_callback(label, href):
     </a>
     """
     return button_html
-    
-# Page config
-st.set_page_config(
-    page_title="Data Summarizer Dashboard",
-    page_icon="📈",
-    layout="wide"
-)
-
-# After page config
-if "followup_history" not in st.session_state:
-    st.session_state.followup_history = []
-
-if "chart_history" not in st.session_state:
-    st.session_state.chart_history = []
-
-if "token_count" not in st.session_state:
-    st.session_state.token_count = 0 
-
-
-with stylable_container(
-    key="sticky_header",
-    css_styles="""
-        {
-            position: fixed;
-            top: 2.875rem;
-            background-color: #000000;
-            z-index: 1000;
-            width: 100%;
-            border-bottom: 1px solid #ccc;
-            padding: 5px 0px 50px 0px;
-            box-sizing: border-box;
-            display: flex;
-            justify-content: flex-start;
-            align-items: flex-start;
-        }
-    """,
-):
-    # Title
-    st.title("DATA SUMMARIZER DASHBOARD")
-    col_main1, col_main2 = st.columns([3,4])
-    with col_main1:
-        with stylable_container(
-            key="nav_buttons",
-            css_styles="""
-                {
-                    display: flex;
-                    flex-direction: row;
-                    justify-content: space-evenly;
-                    align-items: center;
-                    gap: 8px;
-                    width: 100%;
-                }
-            """,
-        ):
-            nav_html = """
-            <div style="display:flex; width:100%; justify-content:space-evenly; align-items:center; gap:8px;">
-            """
-            nav_html += button_callback("Back to the Top", "#dataset-summary-with-claude")
-            nav_html += button_callback("Dataset Preview", "#dataset-preview")
-            nav_html += button_callback("Dataset Description", "#dataset-description")
-            nav_html += button_callback("Dataset Summary and Analysis", "#dataset-summary-and-analysis")
-            nav_html += button_callback("Dataset Prompt", "#dataset-prompt")
-            nav_html += "</div>"
-            st.markdown(nav_html, unsafe_allow_html=True)
-
-
-st.markdown("---")
-
-st.markdown("## Dataset Summary with Claude")
-top_row = st.columns([3,3,3])
-with top_row[0]:
-    st.markdown("#### Function Summary")
-    st.text("This app allows you to either use a predefined dataset or upload a CSV dataset and get a summary analysis using Claude. The analysis includes statistical summaries, data insights, and actionable recommendations. You can explore the dataset preview, get a detailed description, and receive a comprehensive summary and analysis to help you understand your data better.")
-with top_row[1]:
-    st.markdown("#### Choose a dataset")
-    dataset_source = st.radio(
-        "Data source",
-        ["Upload CSV", "Sample dataset"],
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-
-    df = None
-    if dataset_source == "Upload CSV":
-        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-        if uploaded_file is not None:
-            df = pd.read_csv(uploaded_file)
-    else:
-        sample_name = st.selectbox(
-            "Choose a sample dataset",
-            ["Iris", "Wine", "Breast Cancer", "Diabetes"],
-        )
-        from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_diabetes
-
-        if sample_name == "Iris":
-            data = load_iris(as_frame=True)
-            df = data.frame
-        elif sample_name == "Wine":
-            data = load_wine(as_frame=True)
-            df = data.frame
-        elif sample_name == "Breast Cancer":
-            data = load_breast_cancer(as_frame=True)
-            df = data.frame
-        elif sample_name == "Diabetes":
-            data = load_diabetes(as_frame=True)
-            df = data.frame
-
-    if df is not None:
-        st.session_state["df"] = df
-
-    analyze_disabled = st.session_state.get("df") is None
-    if st.button("Analyze with Claude", disabled=analyze_disabled):
-        with st.spinner("Generating summary..."):
-            df_current = st.session_state.get("df")
-            claude_summary = summarize_with_claude(df_current)
-
-        # Check for errors
-        if claude_summary.get("error"):
-            st.error(claude_summary.get("text"))
-            # Don't save to session state if error
-        else:
-
-            st.session_state["claude_text"] = claude_summary.get("text")
-            st.session_state["next_steps"] = claude_summary.get("next_steps")
-            st.session_state['chart_1'] = claude_summary.get("chart_1")
-            st.session_state['chart_2'] = claude_summary.get("chart_2")
-            st.session_state["matplotlib_code"] = claude_summary.get("matplotlib_code")
-
-      
-
-
-with top_row[2]:
-    st.markdown("#### Instructions")
-    st.markdown(
-        """
-        1. Upload a CSV file or choose a sample dataset.
-        2. Click "Analyze with Claude" to get an initial EDA-style summary.
-        3. View the summary analysis provided by Claude.
-        4. Use the chat interface below to ask for additional insights or visualizations.
-        """
-    )
-
-st.markdown("---")
-st.markdown("## Dataset Preview")
-# Safe preview at the bottom
-df_preview = st.session_state.get("df")
-if df_preview is not None:
-    st.dataframe(df_preview.head())
-else:
-    st.write("No data uploaded yet.")
-
-st.markdown("---")
-st.markdown("## Dataset Description")
-df_preview = st.session_state.get("df")
-if df_preview is not None:
-    st.dataframe(df_preview.describe())
-else:
-    st.write("No data uploaded yet.")
-
-
-st.markdown("---")
-st.markdown("## Dataset Summary and Analysis")
-
-st.markdown("##### Claude's Analysis:")
 
 # Helper function at top of file
 def extract_python_code(code_string: str) -> str:
@@ -209,8 +43,6 @@ def extract_python_code(code_string: str) -> str:
     if code.endswith("```"):
         code = code[:-3]
     return code.strip()
-
-import re
 
 def render_text_safely(text: str) -> None:
     """
@@ -239,55 +71,6 @@ def render_text_safely(text: str) -> None:
     else:
         # No code blocks - just render as text
         st.text(text)
-
-claude_text = st.session_state.get("claude_text")
-claude_next_steps = st.session_state.get("next_steps")
-claude_chart_1 = st.session_state.get("chart_1")
-claude_chart_2 = st.session_state.get("chart_2")
-claude_code = st.session_state.get("matplotlib_code")
-if claude_text:
-    st.markdown("**Summary:**\n")
-    render_text_safely(claude_text)
-    st.markdown("**Next Steps:**\n")
-    render_text_safely(claude_next_steps)
-    st.markdown(f"**Chart 1:** {claude_chart_1}")
-    st.markdown(f"**Chart 2:** {claude_chart_2}")
-    
-    # Fix code execution
-    if claude_code:
-        try:
-            # Clean markdown code blocks
-            clean_code = extract_python_code(claude_code)
-            
-            # Execute
-            namespace = {
-                'df': st.session_state.get("df"),
-                'plt': plt,
-                'np': np,
-                'pd': pd
-            }
-            exec(clean_code, namespace)
-            
-            # Display figure
-            if 'fig' in namespace:
-                st.pyplot(namespace['fig'])
-            else:
-                st.error("No figure created by the code")
-                
-        except SyntaxError as e:
-            st.error(f"⚠️ Code syntax error: {e}")
-            with st.expander("Show problematic code"):
-                st.code(claude_code, language="python")
-                
-        except Exception as e:
-            st.error(f"⚠️ Execution error: {e}")
-            with st.expander("Show code"):
-                st.code(clean_code, language="python")
-else:
-    st.write("No summary available yet.")
-
-    
-#### Dataset Prompt Components -->
 
 def detect_visualization_intent(question: str) -> bool:
     """
@@ -342,16 +125,228 @@ def detect_visualization_intent(question: str) -> bool:
     ])
     
     return has_creation_keyword and has_viz_keyword
+## <------- Function Set ENDS Here ------> ##
+    
+# Page config
+st.set_page_config(
+    page_title="Data Summarizer Dashboard",
+    page_icon="📈",
+    layout="wide"
+)
+
+# After page config - set counters for later use
+if "followup_history" not in st.session_state:
+    st.session_state.followup_history = []
+
+if "chart_history" not in st.session_state:
+    st.session_state.chart_history = []
+
+if "token_count" not in st.session_state:
+    st.session_state.token_count = 0 
+
+# Sticky header configuration
+with stylable_container(
+    key="sticky_header",
+    css_styles="""
+        {
+            position: fixed;
+            top: 2.875rem;
+            background-color: #000000;
+            z-index: 1000;
+            width: 100%;
+            border-bottom: 1px solid #ccc;
+            padding: 5px 0px 50px 0px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+    """,
+):
+    # Set Title
+    st.title("DATA SUMMARIZER DASHBOARD")
+    col_main1, col_main2 = st.columns([3,4])
+    with col_main1:
+        with stylable_container(
+            key="nav_buttons",
+            css_styles="""
+                {
+                    display: flex;
+                    flex-direction: row;
+                    justify-content: space-evenly;
+                    align-items: center;
+                    gap: 8px;
+                    width: 100%;
+                }
+            """,
+        ):
+            nav_html = """
+            <div style="display:flex; width:100%; justify-content:space-evenly; align-items:center; gap:8px;">
+            """
+            nav_html += button_callback("Back to the Top", "#dataset-summary-with-claude")
+            nav_html += button_callback("Dataset Preview", "#dataset-preview")
+            nav_html += button_callback("Dataset Description", "#dataset-description")
+            nav_html += button_callback("Dataset Summary and Analysis", "#dataset-summary-and-analysis")
+            nav_html += button_callback("Dataset Prompt", "#dataset-prompt")
+            nav_html += "</div>"
+            st.markdown(nav_html, unsafe_allow_html=True)
 
 
 st.markdown("---")
-st.markdown("## Dataset Prompt")
+## <------ Dataset Setup STARTS Here ------> ##
+st.markdown("## Dataset Summary with Claude")
+top_row = st.columns([3,3,3])
+# Column 1
+with top_row[0]:
+    st.markdown("#### Function Summary")
+    st.text("This app allows you to either use a predefined dataset or upload a CSV dataset and get a summary analysis using Claude. The analysis includes statistical summaries, data insights, and actionable recommendations. You can explore the dataset preview, get a detailed description, and receive a comprehensive summary and analysis to help you understand your data better.")
+# Column 2
+with top_row[1]:
+    st.markdown("#### Choose a dataset")
+    dataset_source = st.radio(
+        "Data source",
+        ["Upload CSV", "Sample dataset"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
 
-# Add turn counter
+    df = None
+    if dataset_source == "Upload CSV":
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+        if uploaded_file is not None:
+            df = pd.read_csv(uploaded_file)
+    else:
+        sample_name = st.selectbox(
+            "Choose a sample dataset",
+            ["Iris", "Wine", "Breast Cancer", "Diabetes"],
+        )
+        
+        if sample_name == "Iris":
+            data = load_iris(as_frame=True)
+            df = data.frame
+        elif sample_name == "Wine":
+            data = load_wine(as_frame=True)
+            df = data.frame
+        elif sample_name == "Breast Cancer":
+            data = load_breast_cancer(as_frame=True)
+            df = data.frame
+        elif sample_name == "Diabetes":
+            data = load_diabetes(as_frame=True)
+            df = data.frame
+
+    if df is not None:
+        st.session_state["df"] = df
+
+    analyze_disabled = st.session_state.get("df") is None
+    if st.button("Analyze with Claude", disabled=analyze_disabled):
+        with st.spinner("Generating summary..."):
+            df_current = st.session_state.get("df")
+            claude_summary = summarize_with_claude(df_current)
+
+        # Check for errors
+        if claude_summary.get("error"):
+            st.error(claude_summary.get("text"))
+            # Don't save to session state if error
+        else:
+
+            st.session_state["claude_text"] = claude_summary.get("text")
+            st.session_state["next_steps"] = claude_summary.get("next_steps")
+            st.session_state['chart_1'] = claude_summary.get("chart_1")
+            st.session_state['chart_2'] = claude_summary.get("chart_2")
+            st.session_state["matplotlib_code"] = claude_summary.get("matplotlib_code")
+# Column 3
+with top_row[2]:
+    st.markdown("#### Instructions")
+    st.markdown(
+        """
+        1. Upload a CSV file or choose a sample dataset.
+        2. Click "Analyze with Claude" to get an initial EDA-style summary.
+        3. View the summary analysis provided by Claude.
+        4. Use the chat interface below to ask for additional insights or visualizations.
+        """
+    )
+## <------ Dataset Setup ENDS Here ------> ##
+
+st.markdown("---")
+## <------ Dataset Preview STARTS Here ------> ##
+st.markdown("## Dataset Preview")
+# Safe preview at the bottom
+df_preview = st.session_state.get("df")
+if df_preview is not None:
+    st.dataframe(df_preview.head())
+else:
+    st.write("No data uploaded yet.")
+## <------ Dataset Preview ENDS Here ------> ##
+
+st.markdown("---")
+## <------ Dataset Description STARTS Here ------> ##
+st.markdown("## Dataset Description")
+df_preview = st.session_state.get("df")
+if df_preview is not None:
+    st.dataframe(df_preview.describe())
+else:
+    st.write("No data uploaded yet.")
+## <------ Dataset Description ENDS Here ------> ##
+
+st.markdown("---")
+## <------ Dataset Claude Summary STARTS Here ------> ##
+st.markdown("## Dataset Summary and Analysis")
+st.markdown("##### Claude's Analysis:")
+claude_text = st.session_state.get("claude_text")
+claude_next_steps = st.session_state.get("next_steps")
+claude_chart_1 = st.session_state.get("chart_1")
+claude_chart_2 = st.session_state.get("chart_2")
+claude_code = st.session_state.get("matplotlib_code")
+if claude_text:
+    st.markdown("**Summary:**\n")
+    render_text_safely(claude_text)
+    st.markdown("**Next Steps:**\n")
+    render_text_safely(claude_next_steps)
+    st.markdown(f"**Chart 1:** {claude_chart_1}")
+    st.markdown(f"**Chart 2:** {claude_chart_2}")
+    
+    # Fix code execution
+    if claude_code:
+        try:
+            # Clean markdown code blocks
+            clean_code = extract_python_code(claude_code)
+            
+            # Execute
+            namespace = {
+                'df': st.session_state.get("df"),
+                'plt': plt,
+                'np': np,
+                'pd': pd
+            }
+            exec(clean_code, namespace)
+            
+            # Display figure
+            if 'fig' in namespace:
+                st.pyplot(namespace['fig'])
+            else:
+                st.error("No figure created by the code")
+                
+        except SyntaxError as e:
+            st.error(f"⚠️ Code syntax error: {e}")
+            with st.expander("Show problematic code"):
+                st.code(claude_code, language="python")
+                
+        except Exception as e:
+            st.error(f"⚠️ Execution error: {e}")
+            with st.expander("Show code"):
+                st.code(clean_code, language="python")
+else:
+    st.write("No summary available yet.")
+## <------ Dataset Claude Summary STARTS Here ------> ##
+    
+st.markdown("---")
+## <------ Claude Prompt Summary STARTS Here ------> ##
+st.markdown("## Dataset Prompt")
+# Add turn counter and token counter
 turn_count = len(st.session_state.followup_history) // 2
 token_count = st.session_state.token_count
 st.caption(f"Conversation turns: {turn_count}/10 | Tokens: {token_count}/25000")
-
+# turn counter and token counter statement tracking
 if turn_count >= 10 or token_count >= 25000:
     st.error("⚠️ Conversation limit reached (10 turns or 25000 tokens). Click below to start fresh.")
     if st.button("Clear Chat History"):

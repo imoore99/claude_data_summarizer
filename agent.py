@@ -244,12 +244,14 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
                 result["chart_2"] = block.input.get("chart_2")
                 result["matplotlib_code"] = block.input.get("matplotlib_code")
         
+        #token output for token counter at prompt
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
         token_count = input_tokens + output_tokens
         
         return result, token_count
     
+    # If no connection made, return error
     except anthropic.APIConnectionError as e:
         logger.error(f"Connection error: {str(e)}")
         return {
@@ -259,7 +261,7 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If hitting rate limit, return error message
     except anthropic.RateLimitError as e:
         logger.warning(f"Rate limit hit: {str(e)}")
         return {
@@ -269,7 +271,7 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If API status issue, return error
     except anthropic.APIStatusError as e:
         logger.error(f"API status error {e.status_code}: {str(e)}")
         if e.status_code == 400:
@@ -288,7 +290,7 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
             "matplotlib_code": None,
             "error": True
         }, 0
-    
+    # If edge-case exception, return error
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         return {
@@ -299,6 +301,7 @@ def ask_followup_question(question: str, conversation_history: list, df_context:
             "error": True
         }, 0
 
+## Function for constructing context and intent
 def build_context_for_followup(df):
     """Build intelligent context that works for any dataset."""
     context_parts = []
