@@ -2,13 +2,9 @@
 
 An AI-powered exploratory data analysis tool that provides instant insights and conversational data exploration using Claude Sonnet 4.
 
-🔗 **[Live Demo](your-railway-url-here)** | 📝 **[Blog Post](coming-soon)**
-
-![Data Summarizer Demo](screenshots/demo.png)
-
 ---
 
-## 🎯 What It Does
+## What It Does
 
 Upload any CSV dataset and get:
 - **Automated insights** - AI-generated summary of key patterns and trends
@@ -18,18 +14,18 @@ Upload any CSV dataset and get:
 
 ---
 
-## ✨ Features
+## Features
 
-- 🤖 **Direct Claude API Integration** - Built from scratch without frameworks to understand fundamentals
-- 💬 **10-Turn Conversations** - Intelligent conversation limits with token tracking
-- 📊 **Dynamic Chart Generation** - AI decides when visualizations are needed
-- 🎯 **Smart Intent Detection** - Distinguishes between questions, code requests, and visualization needs
-- 🔄 **Session Management** - Maintains conversation context across interactions
-- 📈 **Sample Datasets** - Includes Iris, Wine, Breast Cancer, and Diabetes datasets
+- **Direct Claude API Integration** - Built from scratch without frameworks to understand fundamentals
+- **10-Turn Conversations** - Intelligent conversation limits with token tracking
+- **Dynamic Chart Generation** - AI decides when visualizations are needed
+- **Smart Intent Detection** - Distinguishes between questions, code requests, and visualization needs
+- **Session Management** - Maintains conversation context across interactions
+- **Sample Datasets** - Includes Iris, Wine, Breast Cancer, and Diabetes datasets
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
@@ -38,8 +34,8 @@ Upload any CSV dataset and get:
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ai-data-summarizer.git
-cd ai-data-summarizer
+git clone https://github.com/imoore99/claude_data_summarizer.git
+cd claude-data-summarizer
 
 # Install dependencies
 pip install -r requirements.txt
@@ -55,7 +51,7 @@ Open http://localhost:8501 in your browser.
 
 ---
 
-## 📖 How to Use
+## How to Use
 
 1. **Choose Your Data**
    - Upload a CSV file, OR
@@ -79,7 +75,7 @@ Open http://localhost:8501 in your browser.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 ```
 ┌─────────────────────────────────────────────┐
 │           Streamlit Frontend                │
@@ -119,7 +115,7 @@ Open http://localhost:8501 in your browser.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
@@ -133,7 +129,7 @@ Open http://localhost:8501 in your browser.
 
 ---
 
-## 📚 What I Learned
+## What I Learned
 
 This was my first AI agent project. Key learnings:
 
@@ -158,7 +154,7 @@ This was my first AI agent project. Key learnings:
 
 ---
 
-## 🔄 What I'd Do Differently Next Time
+## What I'd Do Differently Next Time
 
 - **Use LangChain** - For production-grade agent orchestration
 - **Better Intent Detection** - ML-based classification vs. keyword matching
@@ -170,7 +166,7 @@ This was my first AI agent project. Key learnings:
 
 ---
 
-## ⚠️ Known Limitations
+## Known Limitations
 
 - Works best with clean, numeric datasets
 - May struggle with very large files (>1000 rows)
@@ -182,7 +178,7 @@ This was my first AI agent project. Key learnings:
 
 ---
 
-## 🚀 Roadmap
+## Roadmap
 
 ### **Project 2 (Feb-April 2025): AI Portfolio Optimizer**
 Next project will demonstrate progression:
@@ -191,29 +187,9 @@ Next project will demonstrate progression:
 - Plotly interactive visualizations
 - Risk-based recommendations
 
-### **Future Enhancements for This Project**
-- [ ] Multi-file dataset comparison
-- [ ] Support for Excel, JSON, Parquet
-- [ ] Advanced visualizations (Plotly, Seaborn)
-- [ ] Natural language queries for data filtering
-- [ ] Automated report generation
-
 ---
 
-## 📸 Screenshots
-
-### Main Interface
-![Main Interface](screenshots/main.png)
-
-### AI-Generated Analysis
-![Analysis](screenshots/analysis.png)
-
-### Conversation & Charts
-![Conversation](screenshots/conversation.png)
-
----
-
-## 🧪 Testing
+## Testing
 
 **Recommended test datasets:**
 - Iris (multiclass classification)
@@ -227,23 +203,9 @@ Next project will demonstrate progression:
 
 ---
 
-## 📄 License
-
-MIT License - feel free to use for learning
-
----
-
-## 🙏 Acknowledgments
-
-- Built using [Anthropic's Claude API](https://docs.anthropic.com/)
-- Sample datasets from [scikit-learn](https://scikit-learn.org/)
-- Inspired by the need for faster exploratory data analysis
-
----
-
 ### LIVE PROJECT:
-- View Full Analysis & Visualizations → 
-- Explore the complete project to review pairs trading analysis, cointegration observations and selection criteria.
+- View Full Analysis & Visualizations → https://claudedatasummarizer-production.up.railway.app/
+- Explore the complete project to test EDA and conversational data analysis generation
 
 ### CONTACT:
 
@@ -254,16 +216,6 @@ Ian Moore - Business Intelligence, Credit Risk and Financial Analytics Leader
 💼 LinkedIn: https://www.linkedin.com/in/ian-moore-analytics/
 
 🌐 Portfolio: https://www.ianmooreanalytics.com
-
----
-
-## 📝 Project Context
-
-This is **Project #1** in my 2026 AI/ML learning journey:
-
-**Goal:** Build from credit risk professional → AI-powered analytics "unicorn"  
-**Timeline:** 6 projects across 2026  
-**Next:** Portfolio optimizer with LangChain (Feb-Apr 2025)  
 
 ---
 
