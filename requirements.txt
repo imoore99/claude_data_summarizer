@@ -1,5 +1,14 @@
 streamlit
 pandas
+numpy
 altair
 anthropic
 scikit-learn
+streamlit_extras
+matplotlib
+scipy
+sklearn
+typing
+anthropic
+logging                   #used for logging in terminal
+fdotenv 

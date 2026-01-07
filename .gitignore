@@ -1,3 +1,6 @@
 .env
 ws_build
 dev_workspace
+__pycache__/
+*.pyc
+.DS_Store
