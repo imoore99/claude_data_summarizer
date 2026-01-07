@@ -7,7 +7,6 @@ scikit-learn
 streamlit_extras
 matplotlib
 scipy
-sklearn
 typing
 anthropic
 logging                   #used for logging in terminal
