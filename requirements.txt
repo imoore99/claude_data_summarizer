@@ -10,4 +10,4 @@ scipy
 typing
 anthropic
 logging                   #used for logging in terminal
-fdotenv 
+dotenv 
