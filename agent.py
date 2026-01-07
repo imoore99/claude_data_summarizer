@@ -56,10 +56,9 @@ description = (
 ## describe matplotlib call back
 matplotlib_description = (
     "Complete executable matplotlib code that creates both charts in a figure with two subplots."
-    "Always return a figure with two subplots in initial summary."
+    "Always return a figure with two subplots in the summary."
     "Return a figure with two subplots in subsequent requests if necessary."
-    "If only one plot is requested, return a figure with one subplot."
-    "The code should ALWAYS create a figure object named 'fig' and return it at the end. "
+    "The code should create a figure object named 'fig' and return it at the end. "
     "Assume df is already loaded. Example: fig, axes = plt.subplots(1, 2, figsize=(12, 5))"
 )
 
