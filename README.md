@@ -1,4 +1,4 @@
-# claude_data_summarizer# 📊 AI Data Summarizer
+# claude_data_summarizer
 
 An AI-powered exploratory data analysis tool that provides instant insights and conversational data exploration using Claude Sonnet 4.
 
