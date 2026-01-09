@@ -5,6 +5,7 @@ altair
 anthropic
 scikit-learn
 matplotlib
+seaborn
 scipy
 python-dotenv
 streamlit_extras
