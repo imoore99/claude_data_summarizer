@@ -31,6 +31,37 @@ import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_diabetes  #for test datasets
 from agent import summarize_with_claude, ask_followup_question, build_context_for_followup
+import re
+
+# Load theme from config.toml (if present)
+try:
+    import tomllib as _tomllib
+except Exception:
+    try:
+        import toml as _tomllib
+    except Exception:
+        _tomllib = None
+
+
+def load_config(path: str = "config.toml") -> dict:
+    if _tomllib is None:
+        return {}
+    try:
+        with open(path, "rb") as f:
+            if hasattr(_tomllib, "load"):
+                return _tomllib.load(f)
+            else:
+                # toml lib might only have loads
+                return _tomllib.loads(f.read().decode())
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+config = load_config()
+_theme = config.get("theme", {})
+BG_COLOR = _theme.get("backgroundColor", "#FFFFFF")
+TEXT_COLOR = _theme.get("textColor", "#000000")
 
 ## <------- Function Set STARTS Here ------> ##
 def button_callback(label, href):
@@ -158,6 +189,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# Apply theme from config.toml (if available)
+st.markdown(
+    f"""
+    <style>
+        .stApp, .reportview-container, .main, body {{
+            background-color: {BG_COLOR} !important;
+            color: {TEXT_COLOR} !important;
+        }}
+        .stMarkdown, .stText, .stCode, .stDataFrame, .stTable {{
+            color: {TEXT_COLOR} !important;
+        }}
+        .stButton>button {{
+            background-color: #005f85 !important;
+            color: white !important;
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # After page config - set counters for later use
 if "followup_history" not in st.session_state:
     st.session_state.followup_history = []
@@ -171,11 +222,11 @@ if "token_count" not in st.session_state:
 # Sticky header configuration
 with stylable_container(
     key="sticky_header",
-    css_styles="""
-        {
+    css_styles=f"""
+        {{
             position: fixed;
             top: 2.875rem;
-            background-color: #000000;
+            background-color: {BG_COLOR};
             z-index: 1000;
             width: 100%;
             border-bottom: 1px solid #ccc;
@@ -184,7 +235,7 @@ with stylable_container(
             display: flex;
             justify-content: flex-start;
             align-items: flex-start;
-        }
+        }}
     """,
 ):
     # Set Title
