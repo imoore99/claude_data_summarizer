@@ -225,19 +225,15 @@ with stylable_container(
     css_styles=f"""
         {{
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 2.875rem;
             background-color: {BG_COLOR};
             z-index: 1000;
             width: 100%;
             border-bottom: 1px solid #ccc;
-            margin: 0;
-            padding: 0;
+            padding: 5px 0px 50px 0px;
             box-sizing: border-box;
             display: flex;
             justify-content: flex-start;
-            align-items: flex-start;
         }}
     """,
 ):
